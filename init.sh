@@ -88,11 +88,6 @@ def admin_menu_kb() -> InlineKeyboardMarkup:
     builder.button(text="🚪 Exit", callback_data="admin_exit")
     return builder.adjust(1).as_markup()
 
-def user_main_kb() -> InlineKeyboardMarkup:
-    builder: InlineKeyboardBuilder = InlineKeyboardBuilder()
-    builder.button(text="👤 My Profile", callback_data="user_profile")
-    return builder.as_markup()
-
 def back_kb(callback: str = "admin_back") -> InlineKeyboardMarkup:
     builder: InlineKeyboardBuilder = InlineKeyboardBuilder()
     builder.button(text="⬅️ Back", callback_data=callback)
