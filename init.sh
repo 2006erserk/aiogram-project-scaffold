@@ -233,9 +233,9 @@ async def main() -> None:
     logging.basicConfig(level=logging.INFO)
     db: Database = Database(os.getenv("DATABASE_URL"))
     await db.create_all()
-    bot: Bot = Bot(token=os.getenv("BOT_TOKEN"))
-    manager: BotManager = BotManager(bot)
-    dp: Dispatcher = Dispatcher()
+    bot = Bot(token=os.getenv("BOT_TOKEN"))
+    manager = BotManager(bot)
+    dp = Dispatcher()
     dp.include_routers(*get_all_routers())
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot, manager=manager, db=db)
@@ -263,6 +263,15 @@ EOF
 echo "BOT_TOKEN='your_token'
 DATABASE_URL=sqlite+aiosqlite:///db.sqlite3
 ADMIN_ID=12345678" > "$PROJECT_DIR/.env"
+
+cat <<'EOF' > "$PROJECT_DIR/.gitignore"
+venv/
+.env
+__pycache__/
+*.db
+*.pyc
+.DS_Store
+EOF
 
 touch "$PROJECT_DIR/core/__init__.py" "$PROJECT_DIR/core/database/__init__.py" \
       "$PROJECT_DIR/core/keyboards/__init__.py" "$PROJECT_DIR/core/utils/__init__.py" \
