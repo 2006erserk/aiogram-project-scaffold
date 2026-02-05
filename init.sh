@@ -19,6 +19,7 @@ aiosqlite" > "$PROJECT_DIR/requirements.txt"
 mkdir -p "$PROJECT_DIR/database"
 mkdir -p "$PROJECT_DIR/core/"{keyboards,routers,utils}
 
+# --- Database Models ---
 cat <<'EOF' > "$PROJECT_DIR/database/models.py"
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy import BigInteger, String
@@ -33,6 +34,7 @@ class User(Base):
     full_name: Mapped[Optional[str]] = mapped_column(String(128))
 EOF
 
+# --- Database Manager ---
 cat <<'EOF' > "$PROJECT_DIR/database/db_manager.py"
 from typing import List, Optional, Sequence
 from sqlalchemy import select
@@ -66,6 +68,7 @@ class Database:
             return [row[0] for row in result.all()]
 EOF
 
+# --- States ---
 cat <<'EOF' > "$PROJECT_DIR/core/utils/states.py"
 from aiogram.fsm.state import StatesGroup, State
 
@@ -77,6 +80,7 @@ class UserState(StatesGroup):
     main: State = State()
 EOF
 
+# --- Keyboards ---
 cat <<'EOF' > "$PROJECT_DIR/core/keyboards/builders.py"
 from aiogram.types import InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
@@ -88,21 +92,42 @@ def admin_menu_kb() -> InlineKeyboardMarkup:
     builder.button(text="🚪 Exit", callback_data="admin_exit")
     return builder.adjust(1).as_markup()
 
+def user_main_kb() -> InlineKeyboardMarkup:
+    builder: InlineKeyboardBuilder = InlineKeyboardBuilder()
+    builder.button(text="👤 My Profile", callback_data="user_profile")
+    return builder.as_markup()
+
 def back_kb(callback: str = "admin_back") -> InlineKeyboardMarkup:
     builder: InlineKeyboardBuilder = InlineKeyboardBuilder()
     builder.button(text="⬅️ Back", callback_data=callback)
     return builder.as_markup()
 EOF
 
+# --- UI Config ---
+cat <<'EOF' > "$PROJECT_DIR/core/utils/ui_config.py"
+from typing import Dict, Tuple, Optional
+from aiogram.types import InlineKeyboardMarkup
+from core.keyboards.builders import admin_menu_kb, user_main_kb
+
+# Централизованное управление интерфейсом
+UI_SCREENS: Dict[str, Tuple[str, Optional[InlineKeyboardMarkup]]] = {
+    "AdminState:menu": ("🛠 Admin Panel", admin_menu_kb()),
+    "UserState:main": ("🏠 Main Menu", user_main_kb()),
+}
+
+DEFAULT_SCREEN = ("Welcome to Main Menu", user_main_kb())
+EOF
+
+# --- Bot Manager ---
 cat <<'EOF' > "$PROJECT_DIR/core/utils/bot_manager.py"
 import asyncio
-from typing import Union, Optional, List, Dict, Tuple
+from typing import Union, Optional, List, Dict
 from aiogram import Bot
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State
 from aiogram.exceptions import TelegramBadRequest
-from core.keyboards.builders import admin_menu_kb, user_main_kb
+from core.utils.ui_config import UI_SCREENS, DEFAULT_SCREEN
 
 class BotManager:
     def __init__(self, bot: Bot) -> None:
@@ -138,11 +163,7 @@ class BotManager:
 
     async def render_by_state(self, event: Union[Message, CallbackQuery], state: FSMContext) -> None:
         curr_state: Optional[str] = await state.get_state()
-        screens: Dict[str, Tuple[str, InlineKeyboardMarkup]] = {
-            "AdminState:menu": ("🛠 Admin Panel", admin_menu_kb()),
-            "UserState:main": ("🏠 Main Menu", user_main_kb()),
-        }
-        text, kb = screens.get(curr_state, ("Main Menu", user_main_kb()))
+        text, kb = UI_SCREENS.get(curr_state, DEFAULT_SCREEN)
         await self.update_ui(event, text, state, kb=kb)
 
     async def broadcast(self, user_ids: List[int], text: str) -> int:
@@ -156,6 +177,7 @@ class BotManager:
         return count
 EOF
 
+# --- Routers Init ---
 cat <<'EOF' > "$PROJECT_DIR/core/routers/__init__.py"
 import pkgutil
 import importlib
@@ -171,6 +193,7 @@ def get_all_routers() -> List[Router]:
     return routers
 EOF
 
+# --- Admin Router ---
 cat <<'EOF' > "$PROJECT_DIR/core/routers/admin.py"
 import os
 from typing import Optional, List
@@ -224,6 +247,21 @@ async def exit_admin(call: CallbackQuery, state: FSMContext) -> None:
     await call.message.edit_text("👋 Session terminated.")
 EOF
 
+# --- Start Router ---
+cat << 'EOF' > "$PROJECT_DIR/core/routers/start.py"
+from aiogram import Router, F
+from aiogram.types import Message
+from database.db_manager import Database
+
+router: Router = Router()
+
+@router.message(F.text == "/start")
+async def start_h(message: Message, db: Database) -> None:
+    await db.add_user(message.from_user.id, message.from_user.username, message.from_user.full_name)
+    await message.answer("Registered!")
+EOF
+
+# --- Main Entry Point ---
 cat <<'EOF' > "$PROJECT_DIR/main.py"
 import asyncio
 import os
@@ -253,19 +291,7 @@ if __name__ == "__main__":
         pass
 EOF
 
-cat << 'EOF' > "$PROJECT_DIR/core/routers/start.py"
-from aiogram import Router, F
-from aiogram.types import Message
-from database.db_manager import Database
-
-router: Router = Router()
-
-@router.message(F.text == "/start")
-async def start_h(message: Message, db: Database) -> None:
-    await db.add_user(message.from_user.id, message.from_user.username, message.from_user.full_name)
-    await message.answer("Registered!")
-EOF
-
+# --- Env & Gitignore ---
 echo "BOT_TOKEN='your_token'
 DATABASE_URL=sqlite+aiosqlite:///db.sqlite3
 ADMIN_ID=12345678" > "$PROJECT_DIR/.env"
