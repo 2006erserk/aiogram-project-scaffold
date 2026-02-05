@@ -16,9 +16,10 @@ python-dotenv
 sqlalchemy
 aiosqlite" > "$PROJECT_DIR/requirements.txt"
 
-mkdir -p "$PROJECT_DIR/core/"{database,keyboards,routers,utils}
+mkdir -p "$PROJECT_DIR/database"
+mkdir -p "$PROJECT_DIR/core/"{keyboards,routers,utils}
 
-cat <<'EOF' > "$PROJECT_DIR/core/database/models.py"
+cat <<'EOF' > "$PROJECT_DIR/database/models.py"
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy import BigInteger, String
 from typing import Optional
@@ -32,11 +33,11 @@ class User(Base):
     full_name: Mapped[Optional[str]] = mapped_column(String(128))
 EOF
 
-cat <<'EOF' > "$PROJECT_DIR/core/database/db_manager.py"
+cat <<'EOF' > "$PROJECT_DIR/database/db_manager.py"
 from typing import List, Optional, Sequence
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncEngine, AsyncSession
-from core.database.models import Base, User
+from database.models import Base, User
 
 class Database:
     def __init__(self, url: str) -> None:
@@ -184,8 +185,8 @@ from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from core.utils.states import AdminState
 from core.utils.bot_manager import BotManager
-from core.database.db_manager import Database
-from core.database.models import User
+from database.db_manager import Database
+from database.models import User
 from core.keyboards.builders import admin_menu_kb, back_kb
 
 router: Router = Router()
@@ -201,6 +202,16 @@ async def show_users(call: CallbackQuery, state: FSMContext, db: Database, manag
     users: List[User] = await db.get_all_users()
     text: str = "📋 Users List:\n\n" + "\n".join([f"{u.user_id} | @{u.user_name}" for u in users]) if users else "Database is empty."
     await manager.update_ui(call, text, state, kb=back_kb())
+
+@router.callback_query(F.data == "admin_broadcast")
+async def start_broadcast(call: CallbackQuery, state: FSMContext, manager: BotManager) -> None:
+    await manager.update_ui(call, "📝 Send me the message for broadcast:", state, kb=back_kb(), new_state=AdminState.broadcast)
+
+@router.message(AdminState.broadcast)
+async def process_broadcast(message: Message, state: FSMContext, db: Database, manager: BotManager) -> None:
+    uids = await db.get_all_user_ids()
+    sent_count = await manager.broadcast(uids, message.text)
+    await manager.update_ui(message, f"✅ Broadcast finished!\nSent to: {sent_count} users.", state, kb=admin_menu_kb(), new_state=AdminState.menu)
 
 @router.callback_query(F.data == "admin_back")
 async def go_back(call: CallbackQuery, state: FSMContext, manager: BotManager) -> None:
@@ -225,7 +236,7 @@ import logging
 from dotenv import load_dotenv
 from aiogram import Bot, Dispatcher
 from core.routers import get_all_routers
-from core.database.db_manager import Database
+from database.db_manager import Database
 from core.utils.bot_manager import BotManager
 
 async def main() -> None:
@@ -250,7 +261,7 @@ EOF
 cat << 'EOF' > "$PROJECT_DIR/core/routers/start.py"
 from aiogram import Router, F
 from aiogram.types import Message
-from core.database.db_manager import Database
+from database.db_manager import Database
 
 router: Router = Router()
 
@@ -269,11 +280,12 @@ venv/
 .env
 __pycache__/
 *.db
+*.sqlite3
 *.pyc
 .DS_Store
 EOF
 
-touch "$PROJECT_DIR/core/__init__.py" "$PROJECT_DIR/core/database/__init__.py" \
+touch "$PROJECT_DIR/core/__init__.py" "$PROJECT_DIR/database/__init__.py" \
       "$PROJECT_DIR/core/keyboards/__init__.py" "$PROJECT_DIR/core/utils/__init__.py" \
       "$PROJECT_DIR/README.md"
 
