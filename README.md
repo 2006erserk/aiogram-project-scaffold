@@ -10,11 +10,11 @@ A bash script for rapid deployment of a Python Telegram bot project. It automati
 
 ## Project Structure
 ```text
-core/
-├── database/     # Table models and session manager
+core/     
 ├── keyboards/    # Inline keyboard builders
 ├── routers/      # Command and message handlers
 └── utils/        # FSM states and BotManager logic
+database/         # Table models and session manager
 .env              # Configuration (token, db, admins)
 .gitignore        # Git exclusion list
 init.sh           # Deployment script
