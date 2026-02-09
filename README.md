@@ -1,3 +1,5 @@
+The project is currently being reworked. Current version is beta.
+
 # Aiogram + SQLAlchemy Python Telegram Bot Project Scaffold
 
 A bash script for rapid deployment of a Python Telegram bot project. It automatically creates a virtual environment, installs dependencies, and sets up a modular layered architecture (database, routers, keyboards).
